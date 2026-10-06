@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.venv/
+
+# Nunca commitar o scope real (pode conter hosts/IPs internos e
+# referências a segredos) — só o .example fica versionado.
+config/scope.yaml
+
+# Relatórios podem conter respostas de agentes com dados sensíveis.
+reports/*/*.json

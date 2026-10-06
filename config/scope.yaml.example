@@ -1,0 +1,53 @@
+# Copie para config/scope.yaml e preencha com os dados reais autorizados.
+# config/scope.yaml NÃO deve ser commitado publicamente se contiver
+# nomes/IPs internos sensíveis — adicione ao .gitignore se este repo
+# for compartilhado além da equipe de segurança.
+
+authorization:
+  roe_document: "docs/ROE_SIGNED_2026.pdf"   # caminho/referência do ROE assinado (fora do git)
+  approved_by: "Nome do aprovador formal"
+  valid_from: "2026-10-01"
+  valid_until: "2026-12-31"
+
+# Janela em que execuções ATIVAS são permitidas. Fora dela, o guardrail
+# bloqueia mesmo com --confirm.
+active_test_window:
+  days: ["mon", "tue", "wed", "thu"]   # evitar sexta/fim de semana por padrão
+  start_time: "20:00"
+  end_time: "23:00"
+  timezone: "America/Sao_Paulo"
+
+# Alvos permitidos. Qualquer alvo fora desta lista é rejeitado pelo
+# guardrail, mesmo em modo passivo.
+targets:
+  web:
+    - host: "staging.exemplo.com"
+      allow_active: true
+    - host: "app.exemplo.com"
+      allow_active: false   # produção: só passivo/recon até maturidade do processo
+
+  cloud:
+    - provider: "aws"
+      account_id: "000000000000"
+      allow_active: false   # cloud sempre começa só leitura de config
+
+  network: []   # vazio até a Fase 4 estar implementada
+  mobile: []    # vazio até a Fase 5 estar implementada
+
+  # Fase 1 (atual): agentes de IA em pré-publicação a testar.
+  ai_llm:
+    - name: "meu-agente-v1"
+      environment: "staging"
+      adapter:
+        # path no formato "modulo.caminho:nome_da_função_ou_classe"
+        path: "modules.ai_llm.adapters.http_adapter:example_openai_style_adapter"
+        kwargs:
+          endpoint: "https://staging-interno.exemplo.com/v1/agent/chat"
+          api_key: "${AGENT_STAGING_API_KEY}"   # nunca hardcode a chave aqui; resolva via env var no seu adapter
+      allow_active: false   # sondagem de robustez é tratada como modo "passive" pelo runner
+
+# Qualquer host/IP/CIDR aqui é bloqueado mesmo que apareça em targets
+# por engano.
+excluded:
+  - "*.pagamentos.exemplo.com"
+  - "10.0.50.0/24"   # ex: segmento de produção crítico
