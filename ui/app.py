@@ -1,9 +1,10 @@
 """GateKeeper — plataforma de testes de segurança internos.
 
-Tela única com uma aba por agente (um agente por tipo de teste: IA/LLM,
-API/web, cloud, rede, mobile). Hoje só a aba "GateKeeper AI" tem lógica
-de verdade — as outras existem para mostrar o que está planejado
-(ver docs/ROADMAP.md) sem fingir que já funcionam.
+Tela única com uma aba de Configuração (guardrails: autorização, janela
+de teste, agentes cadastrados) e uma aba por agente (um agente por tipo
+de teste: IA/LLM, API/web, cloud, rede, mobile). Hoje só a aba
+"GateKeeper AI" tem lógica de verdade — as outras existem para mostrar
+o que está planejado (ver docs/ROADMAP.md) sem fingir que já funcionam.
 
 Para abrir:
     streamlit run ui/app.py
@@ -12,6 +13,7 @@ Isso abre uma aba no seu navegador em http://localhost:8501
 """
 from __future__ import annotations
 
+import datetime as dt
 import pathlib
 import sys
 
@@ -19,18 +21,32 @@ import streamlit as st
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
-from modules.ai_llm.adapters.http_adapter import example_openai_style_adapter, simple_json_adapter
-from modules.ai_llm.runner import PROBES_DIR, execute, load_probes
+from core.guardrails import authorize
+from core.scope import Scope
+from modules.ai_llm.runner import PROBES_DIR, execute, load_adapter, load_probes
 from modules.reporting.generate import build_markdown_report
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 st.set_page_config(page_title="GateKeeper", page_icon="🛡️", layout="wide")
 
+DAYS_PT = {"mon": "Seg", "tue": "Ter", "wed": "Qua", "thu": "Qui", "fri": "Sex", "sat": "Sáb", "sun": "Dom"}
+AI_FORMATS = [
+    "Formato simples: eu envio {\"message\": \"...\"} e recebo {\"response\": \"...\"}",
+    "Formato OpenAI (chat completions)",
+]
+
 
 def _probe_prompt_text(p: dict) -> str:
     """Mesmo critério usado em runner.execute() para exibir o prompt."""
     return p.get("prompt") or " -> ".join(p.get("multi_turn", []))
+
+
+def _get_scope() -> Scope:
+    # Recarrega do disco a cada rerender — é um app local de uso individual,
+    # não precisa de cache; e garante que uma edição salva na aba
+    # Configuração apareça imediatamente nas abas de agente.
+    return Scope.load_or_blank()
 
 
 def render_home() -> None:
@@ -66,13 +82,173 @@ escuro".
     st.subheader("Antes de usar qualquer agente")
     st.markdown(
         """
-1. Tenha autorização formal registrada (`docs/ROE_TEMPLATE.md`).
-2. O alvo precisa estar listado em `config/scope.yaml` — nenhum agente
-   roda contra um alvo fora do escopo autorizado.
-3. Leia o relatório gerado por cada agente — nenhum veredito automático
+1. Preencha a aba **⚙️ Configuração** — autorização (ROE), janela de
+   teste e cadastro do(s) agente(s). Sem isso, nenhum agente libera o
+   botão de executar.
+2. Leia o relatório gerado por cada agente — nenhum veredito automático
    substitui decisão humana sobre publicar ou não.
         """
     )
+
+
+def render_config() -> None:
+    st.header("⚙️ Configuração — guardrails")
+    st.caption(
+        "Isto é o que impede qualquer agente de rodar contra um alvo sem autorização. "
+        "Preencha aqui uma vez; as abas de agente passam a usar esse cadastro."
+    )
+
+    scope = _get_scope()
+    auth = scope.raw.setdefault("authorization", {})
+    window_cfg = scope.raw.setdefault(
+        "active_test_window", {"days": [], "start_time": "08:00", "end_time": "20:00", "timezone": "America/Sao_Paulo"}
+    )
+
+    # --- Status atual, antes de qualquer edição ---
+    st.subheader("Status atual")
+    scope_path_exists = (ROOT / "config" / "scope.yaml").exists()
+    try:
+        authz_ok = scope.authorization_valid()
+    except Exception:
+        authz_ok = False
+    window_open_now = scope.active_window.is_open()
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Arquivo de escopo", "Existe" if scope_path_exists else "Não criado ainda")
+    c2.metric("Autorização (ROE)", "✅ Válida" if authz_ok else "🚫 Vencida / não preenchida")
+    c3.metric("Dentro da janela de teste agora", "✅ Sim" if window_open_now else "⏸️ Não (informativo)")
+
+    st.divider()
+    st.subheader("1. Autorização (ROE)")
+    st.caption("Sem isto válido, o botão de executar fica bloqueado em todas as abas de agente.")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        approved_by = st.text_input("Aprovado por (nome/cargo)", value=auth.get("approved_by", ""), key="cfg_approved_by")
+        roe_document = st.text_input(
+            "Referência do documento de ROE assinado (ex: caminho/link)", value=auth.get("roe_document", ""), key="cfg_roe_document"
+        )
+    with col2:
+        try:
+            default_from = dt.date.fromisoformat(auth["valid_from"]) if auth.get("valid_from") else dt.date.today()
+        except ValueError:
+            default_from = dt.date.today()
+        try:
+            default_until = (
+                dt.date.fromisoformat(auth["valid_until"]) if auth.get("valid_until") else dt.date.today() + dt.timedelta(days=90)
+            )
+        except ValueError:
+            default_until = dt.date.today() + dt.timedelta(days=90)
+        valid_from = st.date_input("Válido a partir de", value=default_from, key="cfg_valid_from")
+        valid_until = st.date_input("Válido até", value=default_until, key="cfg_valid_until")
+
+    st.subheader("2. Janela de teste ativo")
+    st.caption("Informativo para agentes com ação ativa (ex: varredura de rede). O GateKeeper AI roda a qualquer hora dentro da autorização válida.")
+    col3, col4, col5 = st.columns(3)
+    with col3:
+        selected_days = st.multiselect(
+            "Dias permitidos",
+            list(DAYS_PT.keys()),
+            default=window_cfg.get("days", []),
+            format_func=lambda d: DAYS_PT[d],
+            key="cfg_days",
+        )
+    with col4:
+        start_time = st.time_input(
+            "Início", value=dt.time.fromisoformat(window_cfg.get("start_time", "08:00")), key="cfg_start_time"
+        )
+    with col5:
+        end_time = st.time_input(
+            "Fim", value=dt.time.fromisoformat(window_cfg.get("end_time", "20:00")), key="cfg_end_time"
+        )
+    timezone = st.text_input("Fuso horário", value=window_cfg.get("timezone", "America/Sao_Paulo"), key="cfg_timezone")
+
+    if st.button("💾 Salvar autorização e janela de teste", type="primary", key="cfg_save_auth"):
+        scope.raw["authorization"] = {
+            "roe_document": roe_document,
+            "approved_by": approved_by,
+            "valid_from": valid_from.isoformat(),
+            "valid_until": valid_until.isoformat(),
+        }
+        scope.raw["active_test_window"] = {
+            "days": selected_days,
+            "start_time": start_time.strftime("%H:%M"),
+            "end_time": end_time.strftime("%H:%M"),
+            "timezone": timezone,
+        }
+        scope.save()
+        st.success("Salvo em `config/scope.yaml`. Recarregando status...")
+        st.rerun()
+
+    st.divider()
+    st.subheader("3. Agentes cadastrados — GateKeeper AI")
+    st.caption(
+        "Cadastre aqui o(s) agente(s) de IA que você vai testar. A chave de API fica salva em texto "
+        "simples em `config/scope.yaml` (fora do git) — não é um cofre de segredos; aceitável para "
+        "uso local de uma pessoa/equipe pequena, não para múltiplos usuários sem controle de acesso."
+    )
+
+    existing = scope.targets_for("ai_llm")
+    if existing:
+        st.dataframe(
+            [
+                {
+                    "nome": t.get("name"),
+                    "ambiente": t.get("environment"),
+                    "endpoint": t.get("adapter", {}).get("kwargs", {}).get("endpoint", ""),
+                }
+                for t in existing
+            ],
+            use_container_width=True,
+            hide_index=True,
+        )
+        remove_name = st.selectbox(
+            "Remover agente cadastrado", ["(nenhum)"] + [t["name"] for t in existing], key="cfg_remove_select"
+        )
+        if remove_name != "(nenhum)" and st.button(f"🗑️ Remover '{remove_name}'", key="cfg_remove_btn"):
+            scope.remove_target("ai_llm", remove_name)
+            scope.save()
+            st.success(f"Agente '{remove_name}' removido.")
+            st.rerun()
+    else:
+        st.info("Nenhum agente de IA cadastrado ainda. Cadastre um abaixo.", icon="ℹ️")
+
+    with st.form("cfg_new_agent_form"):
+        st.markdown("**Cadastrar novo agente**")
+        col_a, col_b = st.columns(2)
+        with col_a:
+            new_name = st.text_input("Nome do agente", placeholder="ex: chatbot-atendimento-v1")
+            new_environment = st.selectbox("Ambiente", ["staging / teste", "desenvolvimento", "produção (cuidado!)"])
+            new_endpoint = st.text_input("Endereço (URL) do agente", placeholder="https://meu-agente-staging.exemplo.com/chat")
+        with col_b:
+            new_format = st.selectbox("Como o agente responde?", AI_FORMATS)
+            new_api_key = st.text_input("Chave de API / token (se precisar)", type="password")
+            new_text_field = "response"
+            if new_format.startswith("Formato simples"):
+                new_text_field = st.text_input("Nome do campo com o texto na resposta JSON", value="response")
+
+        submitted = st.form_submit_button("💾 Salvar agente")
+        if submitted:
+            if not new_name or not new_endpoint:
+                st.error("Nome e endereço (URL) são obrigatórios.")
+            else:
+                if new_format.startswith("Formato simples"):
+                    adapter_cfg = {
+                        "path": "modules.ai_llm.adapters.http_adapter:simple_json_adapter",
+                        "kwargs": {"endpoint": new_endpoint, "api_key": new_api_key, "text_field": new_text_field},
+                    }
+                else:
+                    adapter_cfg = {
+                        "path": "modules.ai_llm.adapters.http_adapter:example_openai_style_adapter",
+                        "kwargs": {"endpoint": new_endpoint, "api_key": new_api_key},
+                    }
+                scope.upsert_target(
+                    "ai_llm",
+                    {"name": new_name, "environment": new_environment, "adapter": adapter_cfg, "allow_active": False},
+                )
+                scope.save()
+                st.success(f"Agente '{new_name}' salvo.")
+                st.rerun()
 
 
 def render_gatekeeper_ai() -> None:
@@ -110,55 +286,57 @@ def render_gatekeeper_ai() -> None:
             """
         )
 
-    st.divider()
-    st.subheader("1. Dados do agente")
-
-    col1, col2 = st.columns(2)
-    with col1:
-        target_name = st.text_input(
-            "Nome do agente (livre, só para identificar nos relatórios)",
-            placeholder="ex: chatbot-atendimento-v1",
-            key="ai_target_name",
-        )
-        environment = st.selectbox(
-            "Ambiente", ["staging / teste", "desenvolvimento", "produção (cuidado!)"], key="ai_environment"
-        )
-        endpoint = st.text_input(
-            "Endereço (URL) do agente", placeholder="https://meu-agente-staging.exemplo.com/chat", key="ai_endpoint"
-        )
-
-    with col2:
-        api_format = st.selectbox(
-            "Como o agente responde?",
-            [
-                "Formato simples: eu envio {\"message\": \"...\"} e recebo {\"response\": \"...\"}",
-                "Formato OpenAI (chat completions)",
-            ],
-            key="ai_api_format",
-        )
-        api_key = st.text_input(
-            "Chave de API / token (se precisar)", type="password", placeholder="deixe em branco se não precisar", key="ai_api_key"
-        )
-        text_field = "response"
-        if api_format.startswith("Formato simples"):
-            text_field = st.text_input("Nome do campo com o texto na resposta JSON", value="response", key="ai_text_field")
+    scope = _get_scope()
+    targets = scope.targets_for("ai_llm")
 
     st.divider()
-    st.subheader("2. Confirmação")
+    st.subheader("1. Escolher agente cadastrado")
 
-    confirmed = st.checkbox(
-        "Confirmo que tenho autorização para testar este agente, e que ele está em ambiente de teste "
-        "(não é produção com usuários reais sendo afetados por esses testes).",
-        key="ai_confirmed",
-    )
-
-    if environment == "produção (cuidado!)" and confirmed:
+    if not targets:
         st.warning(
-            "Você marcou 'produção'. Os testes aqui enviam prompts adversariais reais ao agente. "
-            "Se ele estiver atendendo usuários reais agora, essas mensagens vão aparecer nas "
-            "conversas reais. Prefira sempre staging/teste.",
+            "Nenhum agente cadastrado. Vá para a aba **⚙️ Configuração** e cadastre um agente antes de testar.",
             icon="⚠️",
         )
+        target_cfg = None
+    else:
+        target_names = [t["name"] for t in targets]
+        selected_name = st.selectbox("Agente", target_names, key="ai_selected_target")
+        target_cfg = next(t for t in targets if t["name"] == selected_name)
+        endpoint = target_cfg.get("adapter", {}).get("kwargs", {}).get("endpoint", "")
+        st.caption(f"Ambiente: **{target_cfg.get('environment', '?')}** · Endpoint: `{endpoint}`")
+        if target_cfg.get("environment") == "produção (cuidado!)":
+            st.warning(
+                "Este agente está cadastrado como 'produção'. Os testes enviam prompts adversariais "
+                "reais — se o agente atende usuários reais agora, essas mensagens vão aparecer nas "
+                "conversas reais. Prefira sempre staging/teste.",
+                icon="⚠️",
+            )
+
+    st.divider()
+    st.subheader("2. Status do guardrail")
+
+    can_run = False
+    block_reason = ""
+    if target_cfg is None:
+        block_reason = "Nenhum agente cadastrado/selecionado."
+    else:
+        guardrail_result = authorize(scope, module="ai_llm", target_identifier=target_cfg["name"], mode="passive", confirm=False)
+        try:
+            authz_ok = scope.authorization_valid()
+        except Exception:
+            authz_ok = False
+
+        if not guardrail_result.allowed:
+            block_reason = guardrail_result.reason
+        elif not authz_ok:
+            block_reason = "Autorização (ROE) vencida ou não preenchida na aba Configuração."
+        else:
+            can_run = True
+
+    if can_run:
+        st.success("Guardrail OK: agente no escopo autorizado, dentro da validade do ROE.", icon="✅")
+    else:
+        st.error(f"Bloqueado: {block_reason}", icon="🚫")
 
     probes = load_probes()
     st.caption(f"{len(probes)} testes carregados de `{PROBES_DIR}` (categorias OWASP LLM Top 10 + jailbreak genérico).")
@@ -213,9 +391,7 @@ def render_gatekeeper_ai() -> None:
 
     col_a, col_b = st.columns(2)
     preview_clicked = col_a.button("👀 Ver quais testes serão enviados (não chama o agente)", key="ai_preview_btn")
-    run_clicked = col_b.button(
-        "▶️ Rodar teste de verdade", disabled=not (target_name and endpoint and confirmed), type="primary", key="ai_run_btn"
-    )
+    run_clicked = col_b.button("▶️ Rodar teste de verdade", disabled=not can_run, type="primary", key="ai_run_btn")
 
     if preview_clicked:
         st.write("Estes são os testes que seriam enviados (nenhuma chamada foi feita ainda):")
@@ -225,21 +401,18 @@ def render_gatekeeper_ai() -> None:
             hide_index=True,
         )
 
-    if run_clicked:
-        if api_format.startswith("Formato simples"):
-            adapter = simple_json_adapter(endpoint=endpoint, api_key=api_key, text_field=text_field)
-        else:
-            adapter = example_openai_style_adapter(endpoint=endpoint, api_key=api_key)
+    if run_clicked and target_cfg is not None:
+        adapter = load_adapter(target_cfg["adapter"]["path"], target_cfg["adapter"].get("kwargs", {}))
 
         progress = st.progress(0.0, text="Rodando testes...")
         results = []
         try:
-            results, out_path = execute(adapter, probes, target_name or "agente-sem-nome")
+            results, out_path = execute(adapter, probes, target_cfg["name"])
         except Exception as exc:  # noqa: BLE001 — queremos mostrar qualquer erro de conexão pro usuário
             st.error(
-                f"Não consegui falar com o agente em '{endpoint}'. Erro técnico: {exc}\n\n"
+                f"Não consegui falar com o agente '{target_cfg['name']}'. Erro técnico: {exc}\n\n"
                 "Causas comuns: URL errada, agente exige outra chave/autenticação, "
-                "ou o formato de resposta é diferente do que foi selecionado acima."
+                "ou o formato de resposta é diferente do cadastrado."
             )
         progress.progress(1.0, text="Concluído.")
 
@@ -252,11 +425,11 @@ def render_gatekeeper_ai() -> None:
             c2.metric("🚩 Sinalizados (revisar)", len(flagged))
             c3.metric("✅ Sem sinal de problema", len(ok))
 
-            report_md = build_markdown_report(target_name or "agente-sem-nome", environment, results)
+            report_md = build_markdown_report(target_cfg["name"], target_cfg.get("environment", ""), results)
             st.download_button(
                 "⬇️ Baixar relatório (.md — abre em Word/Google Docs, ou use 'imprimir' do navegador para gerar PDF)",
                 data=report_md,
-                file_name=f"relatorio-{(target_name or 'agente').replace(' ', '-')}.md",
+                file_name=f"relatorio-{target_cfg['name'].replace(' ', '-')}.md",
                 mime="text/markdown",
                 key="ai_report_download",
             )
@@ -302,9 +475,10 @@ def render_placeholder(agent_name: str, icon: str, phase_label: str, description
             st.markdown(readme_path.read_text())
 
 
-home_tab, ai_tab, api_tab, cloud_tab, network_tab, mobile_tab = st.tabs(
+home_tab, config_tab, ai_tab, api_tab, cloud_tab, network_tab, mobile_tab = st.tabs(
     [
         "🏠 Início",
+        "⚙️ Configuração",
         "🤖 GateKeeper AI",
         "🌐 GateKeeper API",
         "☁️ GateKeeper Cloud",
@@ -315,6 +489,9 @@ home_tab, ai_tab, api_tab, cloud_tab, network_tab, mobile_tab = st.tabs(
 
 with home_tab:
     render_home()
+
+with config_tab:
+    render_config()
 
 with ai_tab:
     render_gatekeeper_ai()
