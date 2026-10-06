@@ -1,4 +1,4 @@
-# Regras de Engajamento (ROE) — Teste de Segurança Interno
+# GateKeeper AI — Regras de Engajamento (ROE) — Teste de Segurança Interno
 
 > Preencher e obter assinatura/aprovação formal ANTES de qualquer execução
 > ativa. Guardar uma cópia assinada fora deste repositório (ex: sistema de

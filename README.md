@@ -1,4 +1,4 @@
-# Pentester — Agente interno de testes de segurança
+# GateKeeper AI — Agente interno de testes de segurança
 
 Plataforma para orquestrar testes de segurança **internos e autorizados**
 (web/API, cloud, rede/AD, mobile e IA/LLM), reduzindo a dependência de

@@ -1,4 +1,4 @@
-# ai_llm — Testes de segurança para agentes de IA pré-publicação
+# GateKeeper AI — módulo ai_llm: testes de segurança para agentes de IA pré-publicação
 
 Objetivo: antes de um agente (chatbot, agente com tool-use, RAG, etc.) ir
 para produção, rodar uma bateria de sondas adversariais e registrar como

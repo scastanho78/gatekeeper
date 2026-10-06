@@ -1,4 +1,4 @@
-# Roadmap
+# GateKeeper AI — Roadmap
 
 Ordem de implementação pensada por: (a) superfície de risco/retorno,
 (b) complexidade de guardrails necessários, (c) o que já existe em

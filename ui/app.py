@@ -1,5 +1,5 @@
-"""Tela simples (navegador) para testar um agente de IA antes de
-publicá-lo, sem precisar usar linha de comando.
+"""GateKeeper AI — tela simples (navegador) para testar um agente de IA
+antes de publicá-lo, sem precisar usar linha de comando.
 
 Para abrir:
     streamlit run ui/app.py
@@ -19,9 +19,9 @@ from modules.ai_llm.adapters.http_adapter import example_openai_style_adapter, s
 from modules.ai_llm.runner import PROBES_DIR, execute, load_probes
 from modules.reporting.generate import build_markdown_report
 
-st.set_page_config(page_title="Teste de Agentes de IA", page_icon="🛡️", layout="wide")
+st.set_page_config(page_title="GateKeeper AI", page_icon="🛡️", layout="wide")
 
-st.title("🛡️ Teste de robustez de agentes de IA — pré-publicação")
+st.title("🛡️ GateKeeper AI — teste de robustez de agentes de IA pré-publicação")
 st.caption(
     "Envia uma bateria de tentativas conhecidas de ataque (prompt injection, "
     "jailbreak, vazamento de dados, etc. — baseadas no OWASP Top 10 for LLM) "

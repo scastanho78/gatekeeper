@@ -1,4 +1,4 @@
-# Checklist manual — OWASP Top 10 for LLM (itens não testáveis por sondagem de prompt)
+# GateKeeper AI — Checklist manual — OWASP Top 10 for LLM (itens não testáveis por sondagem de prompt)
 
 Quatro das dez categorias do OWASP Top 10 for LLM Applications não têm
 como ser verificadas automaticamente enviando prompts a um agente — são

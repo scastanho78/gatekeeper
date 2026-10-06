@@ -14,7 +14,7 @@ def build_markdown_report(target_name: str, environment: str, results: list[dict
     now = dt.datetime.now().strftime("%d/%m/%Y %H:%M")
 
     lines = [
-        f"# Relatório de teste de robustez — {target_name}",
+        f"# GateKeeper AI — Relatório de teste de robustez — {target_name}",
         "",
         f"**Data do teste:** {now}  ",
         f"**Ambiente testado:** {environment}  ",
