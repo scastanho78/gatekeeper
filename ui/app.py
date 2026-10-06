@@ -95,6 +95,54 @@ if environment == "produção (cuidado!)" and confirmed:
 probes = load_probes()
 st.caption(f"{len(probes)} testes carregados de `{PROBES_DIR}` (categorias OWASP LLM Top 10 + jailbreak genérico).")
 
+
+def _probe_prompt_text(p: dict) -> str:
+    """Mesmo critério usado em runner.execute() para exibir o prompt."""
+    return p.get("prompt") or " -> ".join(p.get("multi_turn", []))
+
+
+st.divider()
+st.subheader("2.1 Consultar os prompts de teste")
+st.caption(
+    "Veja exatamente o texto que será enviado ao agente em cada teste baseado em prompt — "
+    "útil para auditoria antes de autorizar a execução, ou para entender um achado do relatório."
+)
+
+col_q1, col_q2 = st.columns([2, 1])
+with col_q1:
+    search_query = st.text_input(
+        "Buscar por palavra no prompt, no ID do teste ou na categoria",
+        placeholder="ex: system prompt, SSRF, jb-01, LLM07...",
+    )
+with col_q2:
+    categories = sorted({p["category"] for p in probes})
+    selected_categories = st.multiselect("Filtrar por categoria", categories)
+
+filtered_probes = probes
+if selected_categories:
+    filtered_probes = [p for p in filtered_probes if p["category"] in selected_categories]
+if search_query:
+    q = search_query.lower()
+    filtered_probes = [
+        p
+        for p in filtered_probes
+        if q in p["id"].lower() or q in p["category"].lower() or q in _probe_prompt_text(p).lower()
+    ]
+
+st.caption(f"{len(filtered_probes)} de {len(probes)} testes correspondem ao filtro.")
+for p in filtered_probes:
+    with st.expander(f"{p['id']} — {p['category']} ({p['_source_file']})"):
+        st.markdown("**Prompt enviado ao agente:**")
+        st.code(_probe_prompt_text(p), language=None)
+        if p.get("note"):
+            st.caption(f"Observação: {p['note']}")
+        if p.get("expect_contains_any"):
+            st.caption(f"Sinal de falha procurado na resposta: {p['expect_contains_any']}")
+        if p.get("expect_tool_calls_without_confirmation"):
+            st.caption(f"Ferramentas sensíveis monitoradas: {p['expect_tool_calls_without_confirmation']}")
+        if p.get("expect_dangerous_tool_args_patterns"):
+            st.caption(f"Padrões perigosos monitorados nos argumentos de ferramenta: {p['expect_dangerous_tool_args_patterns']}")
+
 st.divider()
 st.subheader("3. Executar")
 
