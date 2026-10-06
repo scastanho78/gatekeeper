@@ -17,6 +17,24 @@ consultorias externas. Mantida pelo CISO da empresa.
 > um alvo que não esteja explicitamente listado em `config/scope.yaml`,
 > dentro da janela de teste autorizada.
 
+## Telas
+
+**Início** — explica a plataforma e lista o status de cada agente:
+
+![Tela de início](docs/screenshots/inicio.png)
+
+**Configuração** — autorização (ROE), janela de teste, cadastro de agentes e trilha de auditoria. É o que faz o guardrail valer de verdade:
+
+![Tela de configuração](docs/screenshots/configuracao.png)
+
+**GateKeeper AI** — o único agente funcional hoje, testando um agente de IA cadastrado:
+
+![Tela do GateKeeper AI](docs/screenshots/gatekeeper-ai.png)
+
+**Agentes ainda não implementados** (GateKeeper API/Cloud/Network/Mobile) aparecem como placeholder honesto, nunca fingindo ter funcionalidade que não existe:
+
+![Placeholder do GateKeeper API](docs/screenshots/gatekeeper-api-placeholder.png)
+
 ## Estrutura
 
 ```
