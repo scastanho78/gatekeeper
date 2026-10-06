@@ -36,6 +36,18 @@ modules/
   reporting/        Geração de relatório consolidado
 ```
 
+## Modo tela (recomendado se você não usa linha de comando)
+
+```bash
+pip install -r requirements.txt
+streamlit run ui/app.py
+```
+
+Isso abre uma aba no navegador em `http://localhost:8501` com um
+formulário: nome do agente, endereço (URL), chave de API e um botão
+"Rodar teste de verdade". Não precisa editar nenhum arquivo YAML nem
+usar terminal para o teste em si.
+
 ## Pré-requisitos antes de usar em qualquer alvo real
 
 1. `config/scope.yaml` preenchido e revisado — todo alvo fora dele é

@@ -70,3 +70,31 @@ def example_openai_style_adapter(endpoint: str, api_key: str) -> HttpAdapter:
         request_builder=build,
         response_parser=parse,
     )
+
+
+def simple_json_adapter(endpoint: str, api_key: str = "", text_field: str = "response") -> HttpAdapter:
+    """Para agentes caseiros que recebem {"message": "..."} e devolvem
+    algo como {"response": "..."} (ou outro nome de campo, configurável
+    em `text_field`). Pensado para ser usado pela tela (ui/app.py) sem
+    o usuário precisar escrever código.
+    """
+
+    def build(prompt: str, history: list[str] | None) -> dict[str, Any]:
+        return {"message": prompt, "history": history or []}
+
+    def parse(data: dict[str, Any]) -> tuple[str, int | None, list[str]]:
+        text = data.get(text_field, "")
+        tokens = data.get("tokens_used") or data.get("usage", {}).get("total_tokens")
+        tool_calls = data.get("tool_calls", []) or []
+        return str(text), tokens, [str(t) for t in tool_calls]
+
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    return HttpAdapter(
+        endpoint=endpoint,
+        headers=headers,
+        request_builder=build,
+        response_parser=parse,
+    )

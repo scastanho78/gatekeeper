@@ -70,6 +70,51 @@ def load_adapter(adapter_path: str, adapter_kwargs: dict) -> AgentAdapter:
     return factory_or_class(**adapter_kwargs)
 
 
+def execute(adapter: AgentAdapter, probes: list[dict], target_name: str, save_report: bool = True) -> tuple[list[dict], pathlib.Path | None]:
+    """Roda todas as `probes` contra `adapter` e retorna (resultados, caminho_do_relatorio).
+
+    Extraído de `run()` para ser reutilizável tanto pela CLI quanto pela
+    interface web (ui/app.py) — a lógica de avaliação é a mesma nos dois
+    casos, só a origem do adapter/target muda.
+    """
+    results = []
+    for probe in probes:
+        if "multi_turn" in probe:
+            history: list[str] = []
+            response = None
+            for turn in probe["multi_turn"][:-1]:
+                response = adapter.send(turn, history=history)
+                history.append(turn)
+            response = adapter.send(probe["multi_turn"][-1], history=history)
+        else:
+            response = adapter.send(probe["prompt"])
+
+        verdict = evaluate(probe, response.text, response.latency_seconds, response.tokens_used, response.tool_calls)
+        results.append(
+            {
+                "probe_id": probe["id"],
+                "category": probe["category"],
+                "source_file": probe["_source_file"],
+                "prompt": probe.get("prompt") or " -> ".join(probe.get("multi_turn", [])),
+                "note": probe.get("note"),
+                "response_text": response.text,
+                "latency_seconds": response.latency_seconds,
+                "tokens_used": response.tokens_used,
+                "tool_calls": response.tool_calls,
+                **verdict,
+            }
+        )
+
+    out_path = None
+    if save_report:
+        REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+        timestamp = dt.datetime.now().strftime("%Y%m%dT%H%M%S")
+        out_path = REPORTS_DIR / f"{target_name}-{timestamp}.json"
+        out_path.write_text(json.dumps({"target": target_name, "results": results}, indent=2, ensure_ascii=False))
+
+    return results, out_path
+
+
 def run(target_name: str, dry_run: bool, confirm: bool, scope_path: pathlib.Path | None = None) -> int:
     try:
         scope = Scope.load(scope_path)
@@ -104,40 +149,9 @@ def run(target_name: str, dry_run: bool, confirm: bool, scope_path: pathlib.Path
         return 4
 
     adapter = load_adapter(adapter_cfg["path"], adapter_cfg.get("kwargs", {}))
-
-    results = []
-    for probe in probes:
-        if "multi_turn" in probe:
-            history: list[str] = []
-            response = None
-            for turn in probe["multi_turn"][:-1]:
-                response = adapter.send(turn, history=history)
-                history.append(turn)
-            response = adapter.send(probe["multi_turn"][-1], history=history)
-        else:
-            response = adapter.send(probe["prompt"])
-
-        verdict = evaluate(probe, response.text, response.latency_seconds, response.tokens_used, response.tool_calls)
-        results.append(
-            {
-                "probe_id": probe["id"],
-                "category": probe["category"],
-                "source_file": probe["_source_file"],
-                "note": probe.get("note"),
-                "response_text": response.text,
-                "latency_seconds": response.latency_seconds,
-                "tokens_used": response.tokens_used,
-                "tool_calls": response.tool_calls,
-                **verdict,
-            }
-        )
-        status = "FLAGGED" if verdict["flagged"] else "ok"
-        print(f"  [{status}] {probe['id']}")
-
-    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    timestamp = dt.datetime.now().strftime("%Y%m%dT%H%M%S")
-    out_path = REPORTS_DIR / f"{target_name}-{timestamp}.json"
-    out_path.write_text(json.dumps({"target": target_name, "results": results}, indent=2, ensure_ascii=False))
+    results, out_path = execute(adapter, probes, target_name)
+    for r in results:
+        print(f"  [{'FLAGGED' if r['flagged'] else 'ok'}] {r['probe_id']}")
 
     flagged_count = sum(1 for r in results if r["flagged"])
     print(f"\n{flagged_count}/{len(results)} probes marcadas como flagged.")
