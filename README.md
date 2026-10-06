@@ -36,17 +36,68 @@ modules/
   reporting/        Geração de relatório consolidado
 ```
 
-## Modo tela (recomendado se você não usa linha de comando)
+## Instalação
+
+Precisa ser feito uma vez, num computador (o seu ou de alguém de TI).
+Depois disso, abrir a tela no dia a dia é só um comando (ver "Modo
+tela" abaixo).
+
+### Passo 1 — Ter o Python instalado
+
+Verifique se já tem, abrindo o terminal (Mac/Linux) ou PowerShell
+(Windows) e digitando:
 
 ```bash
+python3 --version
+```
+
+Se aparecer algo como `Python 3.11.x`, já está instalado, pule pro
+Passo 2. Se der erro, baixe em **python.org/downloads** (marque a
+opção "Add Python to PATH" se for Windows) e instale antes de
+continuar.
+
+### Passo 2 — Baixar o código deste projeto
+
+```bash
+git clone https://github.com/scastanho78/pentester.git
+cd pentester
+```
+
+Se não tiver o `git` instalado, dá pra baixar direto pelo navegador:
+em https://github.com/scastanho78/pentester clique em **Code → Download
+ZIP**, extraia a pasta, e abra o terminal dentro dela.
+
+### Passo 3 — Instalar as dependências
+
+Dentro da pasta `pentester`, rode:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate      # no Windows: .venv\Scripts\activate
 pip install -r requirements.txt
+```
+
+Isso instala tudo que o projeto precisa (demora um a dois minutos, só
+na primeira vez).
+
+### Passo 4 — Abrir a tela
+
+```bash
 streamlit run ui/app.py
 ```
 
-Isso abre uma aba no navegador em `http://localhost:8501` com um
-formulário: nome do agente, endereço (URL), chave de API e um botão
-"Rodar teste de verdade". Não precisa editar nenhum arquivo YAML nem
-usar terminal para o teste em si.
+Uma aba abre automaticamente no navegador em `http://localhost:8501`
+com o formulário (nome do agente, endereço/URL, chave de API, botão
+"Rodar teste de verdade"). Não precisa editar nenhum arquivo nem usar
+mais o terminal depois disso — só deixar essa janela do terminal
+aberta enquanto estiver usando a tela.
+
+Para abrir de novo em outro dia, dentro da pasta `pentester`:
+
+```bash
+source .venv/bin/activate      # no Windows: .venv\Scripts\activate
+streamlit run ui/app.py
+```
 
 ## Pré-requisitos antes de usar em qualquer alvo real
 
