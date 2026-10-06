@@ -16,6 +16,7 @@ import sys
 
 import yaml
 
+from core.audit import log_authorization, log_run_completed, log_run_failed
 from core.guardrails import GuardrailViolation, authorize, require
 from core.scope import Scope, ScopeError
 from modules.ai_llm.adapters.base import AgentAdapter
@@ -137,7 +138,20 @@ def run(target_name: str, dry_run: bool, confirm: bool, scope_path: pathlib.Path
         print(f"[ERRO DE ESCOPO] {exc}", file=sys.stderr)
         return 2
 
+    probes = load_probes()
+    print(f"{len(probes)} probes carregadas de {PROBES_DIR}")
+
+    if dry_run:
+        # Dry-run só lista o que está no YAML local — não toca no alvo,
+        # então não precisa passar pelo guardrail (igual ao botão "ver
+        # testes" da tela).
+        for p in probes:
+            print(f"  [DRY-RUN] {p['id']} ({p['category']}) — {p['_source_file']}")
+        print("Dry-run concluído. Nenhuma chamada foi feita ao agente.")
+        return 0
+
     result = authorize(scope, module="ai_llm", target_identifier=target_name, mode="passive", confirm=confirm)
+    log_authorization(result, "ai_llm", target_name)
     try:
         require(result)
     except GuardrailViolation as exc:
@@ -145,15 +159,6 @@ def run(target_name: str, dry_run: bool, confirm: bool, scope_path: pathlib.Path
         return 3
 
     target_cfg = next(t for t in scope.targets_for("ai_llm") if t.get("name") == target_name)
-    probes = load_probes()
-    print(f"{len(probes)} probes carregadas de {PROBES_DIR}")
-
-    if dry_run:
-        for p in probes:
-            print(f"  [DRY-RUN] {p['id']} ({p['category']}) — {p['_source_file']}")
-        print("Dry-run concluído. Nenhuma chamada foi feita ao agente.")
-        return 0
-
     adapter_cfg = target_cfg.get("adapter")
     if not adapter_cfg:
         print(
@@ -164,11 +169,18 @@ def run(target_name: str, dry_run: bool, confirm: bool, scope_path: pathlib.Path
         return 4
 
     adapter = load_adapter(adapter_cfg["path"], adapter_cfg.get("kwargs", {}))
-    results, out_path = execute(adapter, probes, target_name)
+    try:
+        results, out_path = execute(adapter, probes, target_name)
+    except Exception as exc:  # noqa: BLE001 — erro de conexão/formato precisa ficar auditável também
+        log_run_failed("ai_llm", target_name, str(exc))
+        print(f"[ERRO AO CHAMAR O AGENTE] {exc}", file=sys.stderr)
+        return 5
+
     for r in results:
         print(f"  [{'FLAGGED' if r['flagged'] else 'ok'}] {r['probe_id']}")
 
     flagged_count = sum(1 for r in results if r["flagged"])
+    log_run_completed("ai_llm", target_name, len(results), flagged_count)
     print(f"\n{flagged_count}/{len(results)} probes marcadas como flagged.")
     print(f"Relatório salvo em: {out_path}")
     print("Revise manualmente cada 'flagged' antes de decidir sobre publicação do agente.")

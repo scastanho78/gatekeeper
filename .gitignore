@@ -8,3 +8,7 @@ config/scope.yaml
 
 # Relatórios podem conter respostas de agentes com dados sensíveis.
 reports/*/*.json
+
+# Trilha de auditoria dos guardrails — fica local, pode conter nomes
+# de agentes/endpoints internos e motivos de bloqueio.
+logs/

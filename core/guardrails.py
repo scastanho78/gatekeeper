@@ -33,12 +33,16 @@ def authorize(
 ) -> AuthorizationResult:
     """Decide se uma ação pode rodar.
 
+    Em ambos os modos: o alvo precisa estar em scope.yaml, não pode estar
+    na lista de exclusão, e a autorização (ROE) precisa estar dentro da
+    validade.
+
     - mode="passive": recon/leitura, sem interação com o alvo que gere
-      carga ou mude estado. Ainda precisa estar no scope.yaml, mas não
-      exige --confirm nem janela de horário.
+      carga ou mude estado (ex: sondar um agente de IA com prompts). Não
+      exige --confirm nem janela de horário, mas ainda exige ROE válido.
     - mode="active": qualquer coisa que envie payloads, faça brute force,
-      explore, etc. Exige: alvo com allow_active=true, dentro da janela
-      de teste, autorização (ROE) ainda válida, e --confirm explícito.
+      explore, etc. Exige adicionalmente: alvo com allow_active=true,
+      dentro da janela de teste, e --confirm explícito.
     """
     if mode not in ("passive", "active"):
         raise ValueError(f"mode inválido: {mode!r}")
@@ -58,8 +62,19 @@ def authorize(
             mode,
         )
 
+    # Validade do ROE é checada para QUALQUER modo — inclusive "passive".
+    # Antes só era checada no modo "active", o que deixava os módulos
+    # passivos (como o ai_llm) rodarem com autorização vencida ou nunca
+    # preenchida sem o guardrail bloquear nada. Testar o próprio agente
+    # de IA ainda é uma ação que precisa de autorização formal registrada.
+    try:
+        if not scope.authorization_valid(now):
+            return AuthorizationResult(False, "Autorização (ROE) vencida ou não preenchida em scope.yaml.", mode)
+    except ScopeError as exc:
+        return AuthorizationResult(False, str(exc), mode)
+
     if mode == "passive":
-        return AuthorizationResult(True, "Execução passiva, dentro do escopo.", mode)
+        return AuthorizationResult(True, "Execução passiva, dentro do escopo e com ROE válido.", mode)
 
     # mode == "active": checagens extras
     if not match.get("allow_active", False):
@@ -68,12 +83,6 @@ def authorize(
             f"'{target_identifier}' está em escopo, mas allow_active=false.",
             mode,
         )
-
-    try:
-        if not scope.authorization_valid(now):
-            return AuthorizationResult(False, "Autorização (ROE) fora da validade.", mode)
-    except ScopeError as exc:
-        return AuthorizationResult(False, str(exc), mode)
 
     if not scope.active_window.is_open(now):
         return AuthorizationResult(

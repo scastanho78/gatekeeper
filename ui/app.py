@@ -21,6 +21,7 @@ import streamlit as st
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
+from core.audit import log_authorization, log_run_completed, log_run_failed, read_recent
 from core.guardrails import authorize
 from core.scope import Scope
 from modules.ai_llm.runner import PROBES_DIR, execute, load_adapter, load_probes
@@ -250,6 +251,42 @@ def render_config() -> None:
                 st.success(f"Agente '{new_name}' salvo.")
                 st.rerun()
 
+    st.divider()
+    st.subheader("4. Trilha de auditoria")
+    st.caption(
+        "Todo bloqueio e toda execução liberada pelo guardrail fica registrado aqui — "
+        "quem/quando/qual agente/permitido ou não e por quê. Arquivo: `logs/guardrail_audit.log`."
+    )
+    audit_events = read_recent(limit=30)
+    if not audit_events:
+        st.info("Nenhum evento registrado ainda — aparece aqui assim que algo rodar ou for bloqueado.", icon="ℹ️")
+    else:
+        EVENT_LABELS = {
+            "authorization_check": "Checagem de guardrail",
+            "run_completed": "Execução concluída",
+            "run_failed": "Execução falhou",
+        }
+        rows = []
+        for ev in audit_events:
+            label = EVENT_LABELS.get(ev.get("event"), ev.get("event"))
+            if ev.get("event") == "authorization_check":
+                detail = ("✅ liberado" if ev.get("allowed") else f"🚫 bloqueado: {ev.get('reason')}")
+            elif ev.get("event") == "run_completed":
+                detail = f"{ev.get('flagged')}/{ev.get('total_probes')} sinalizados"
+            elif ev.get("event") == "run_failed":
+                detail = f"erro: {ev.get('error')}"
+            else:
+                detail = ""
+            rows.append(
+                {
+                    "quando": ev.get("timestamp"),
+                    "evento": label,
+                    "agente": ev.get("target"),
+                    "detalhe": detail,
+                }
+            )
+        st.dataframe(rows, use_container_width=True, hide_index=True)
+
 
 def render_gatekeeper_ai() -> None:
     st.header("🤖 GateKeeper AI — robustez de agentes de IA pré-publicação")
@@ -320,16 +357,11 @@ def render_gatekeeper_ai() -> None:
     if target_cfg is None:
         block_reason = "Nenhum agente cadastrado/selecionado."
     else:
+        # authorize() já cobre validade do ROE para modo "passive" (ver
+        # core/guardrails.py) — não duplicamos a checagem aqui.
         guardrail_result = authorize(scope, module="ai_llm", target_identifier=target_cfg["name"], mode="passive", confirm=False)
-        try:
-            authz_ok = scope.authorization_valid()
-        except Exception:
-            authz_ok = False
-
         if not guardrail_result.allowed:
             block_reason = guardrail_result.reason
-        elif not authz_ok:
-            block_reason = "Autorização (ROE) vencida ou não preenchida na aba Configuração."
         else:
             can_run = True
 
@@ -402,6 +434,16 @@ def render_gatekeeper_ai() -> None:
         )
 
     if run_clicked and target_cfg is not None:
+        # Registra a decisão do guardrail no momento exato da execução —
+        # não a cada rerender da tela — e, de novo, por segurança (o botão
+        # já vem desabilitado quando can_run=False, mas a auditoria não
+        # deve depender só do estado de um widget).
+        guardrail_result_for_run = authorize(scope, module="ai_llm", target_identifier=target_cfg["name"], mode="passive", confirm=False)
+        log_authorization(guardrail_result_for_run, "ai_llm", target_cfg["name"])
+        if not guardrail_result_for_run.allowed:
+            st.error(f"Execução bloqueada pelo guardrail: {guardrail_result_for_run.reason}", icon="🚫")
+            st.stop()
+
         adapter = load_adapter(target_cfg["adapter"]["path"], target_cfg["adapter"].get("kwargs", {}))
 
         progress = st.progress(0.0, text="Rodando testes...")
@@ -409,6 +451,7 @@ def render_gatekeeper_ai() -> None:
         try:
             results, out_path = execute(adapter, probes, target_cfg["name"])
         except Exception as exc:  # noqa: BLE001 — queremos mostrar qualquer erro de conexão pro usuário
+            log_run_failed("ai_llm", target_cfg["name"], str(exc))
             st.error(
                 f"Não consegui falar com o agente '{target_cfg['name']}'. Erro técnico: {exc}\n\n"
                 "Causas comuns: URL errada, agente exige outra chave/autenticação, "
@@ -419,6 +462,7 @@ def render_gatekeeper_ai() -> None:
         if results:
             flagged = [r for r in results if r["flagged"]]
             ok = [r for r in results if not r["flagged"]]
+            log_run_completed("ai_llm", target_cfg["name"], len(results), len(flagged))
 
             c1, c2, c3 = st.columns(3)
             c1.metric("Total de testes", len(results))
