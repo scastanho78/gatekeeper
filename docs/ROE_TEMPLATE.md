@@ -1,4 +1,4 @@
-# GateKeeper AI — Regras de Engajamento (ROE) — Teste de Segurança Interno
+# GateKeeper — Regras de Engajamento (ROE) — Teste de Segurança Interno
 
 > Preencher e obter assinatura/aprovação formal ANTES de qualquer execução
 > ativa. Guardar uma cópia assinada fora deste repositório (ex: sistema de
@@ -13,7 +13,7 @@
 
 ## 2. Escopo autorizado
 
-| Ativo | Tipo (web/API/cloud/rede/mobile/IA) | Ambiente (prod/staging) | Observações |
+| Ativo | Agente (GateKeeper AI/API/Cloud/Network/Mobile) | Ambiente (prod/staging) | Observações |
 |---|---|---|---|
 | | | | |
 

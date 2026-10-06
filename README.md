@@ -1,8 +1,16 @@
-# GateKeeper AI — Agente interno de testes de segurança
+# GateKeeper — Plataforma interna de testes de segurança
 
-Plataforma para orquestrar testes de segurança **internos e autorizados**
-(web/API, cloud, rede/AD, mobile e IA/LLM), reduzindo a dependência de
+Plataforma para orquestrar testes de segurança **internos e autorizados**,
+organizada em um agente por frente de teste, reduzindo a dependência de
 consultorias externas. Mantida pelo CISO da empresa.
+
+| Agente | Frente de teste | Status |
+|---|---|---|
+| **GateKeeper AI** | Agentes de IA / LLM (OWASP Top 10 for LLM) | ✅ Funcional |
+| **GateKeeper API** | Web / APIs (OWASP Top 10, API Security Top 10) | 🔜 Fase 2 |
+| **GateKeeper Cloud** | Postura de configuração AWS/Azure/GCP | 📋 Fase 3 |
+| **GateKeeper Network** | Rede interna / Active Directory | 📋 Fase 4 |
+| **GateKeeper Mobile** | Apps mobile (OWASP MASVS/MASTG) | 📋 Fase 5 |
 
 > ⚠️ Isto não é uma ferramenta de "hacking automático". É um orquestrador
 > de testes com **guardrails obrigatórios**: nenhuma ação ativa roda contra
