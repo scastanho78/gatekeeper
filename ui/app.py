@@ -17,6 +17,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 from modules.ai_llm.adapters.http_adapter import example_openai_style_adapter, simple_json_adapter
 from modules.ai_llm.runner import PROBES_DIR, execute, load_probes
+from modules.reporting.generate import build_markdown_report
 
 st.set_page_config(page_title="Teste de Agentes de IA", page_icon="🛡️", layout="wide")
 
@@ -123,7 +124,14 @@ if run_clicked:
         c2.metric("🚩 Sinalizados (revisar)", len(flagged))
         c3.metric("✅ Sem sinal de problema", len(ok))
 
-        st.caption(f"Relatório completo salvo em: `{out_path}`")
+        report_md = build_markdown_report(target_name or "agente-sem-nome", environment, results)
+        st.download_button(
+            "⬇️ Baixar relatório (.md — abre em Word/Google Docs, ou use 'imprimir' do navegador para gerar PDF)",
+            data=report_md,
+            file_name=f"relatorio-{(target_name or 'agente').replace(' ', '-')}.md",
+            mime="text/markdown",
+        )
+        st.caption(f"Dado bruto também salvo em: `{out_path}`")
 
         if flagged:
             st.markdown("### 🚩 Testes sinalizados — revise antes de publicar o agente")
