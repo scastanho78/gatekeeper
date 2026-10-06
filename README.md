@@ -17,15 +17,6 @@ consultorias externas. Mantida pelo CISO da empresa.
 > um alvo que não esteja explicitamente listado em `config/scope.yaml`,
 > dentro da janela de teste autorizada.
 
-## Por que existe
-
-A partir de 2027 a empresa não terá orçamento para pentest externo
-recorrente. Este projeto automatiza o que pode ser automatizado com
-segurança (recon, varredura de configuração, SAST/SCA, varredura de rede
-e web autorizada, testes de robustez de LLM) e organiza o fluxo de
-decisão humana para o que não pode (exploração ativa, engenharia social,
-red team completo).
-
 ## Estrutura
 
 ```
