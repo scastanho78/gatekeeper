@@ -58,17 +58,17 @@ continuar.
 ### Passo 2 — Baixar o código deste projeto
 
 ```bash
-git clone https://github.com/scastanho78/pentester.git
-cd pentester
+git clone https://github.com/scastanho78/gatekeeper.git
+cd gatekeeper
 ```
 
 Se não tiver o `git` instalado, dá pra baixar direto pelo navegador:
-em https://github.com/scastanho78/pentester clique em **Code → Download
+em https://github.com/scastanho78/gatekeeper clique em **Code → Download
 ZIP**, extraia a pasta, e abra o terminal dentro dela.
 
 ### Passo 3 — Instalar as dependências
 
-Dentro da pasta `pentester`, rode:
+Dentro da pasta `gatekeeper`, rode:
 
 ```bash
 python3 -m venv .venv
@@ -91,7 +91,7 @@ com o formulário (nome do agente, endereço/URL, chave de API, botão
 mais o terminal depois disso — só deixar essa janela do terminal
 aberta enquanto estiver usando a tela.
 
-Para abrir de novo em outro dia, dentro da pasta `pentester`:
+Para abrir de novo em outro dia, dentro da pasta `gatekeeper`:
 
 ```bash
 source .venv/bin/activate      # no Windows: .venv\Scripts\activate
