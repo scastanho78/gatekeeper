@@ -28,6 +28,19 @@ st.caption(
     "contra o seu agente, antes de ele ir para produção."
 )
 
+checklist_path = pathlib.Path(__file__).resolve().parent.parent / "docs" / "CHECKLIST_LLM_MANUAL.md"
+st.download_button(
+    "📋 Baixar checklist manual (itens do OWASP LLM Top 10 que não dá pra testar automaticamente)",
+    data=checklist_path.read_text(),
+    file_name="checklist-llm-manual.md",
+    mime="text/markdown",
+)
+st.caption(
+    "O teste automático abaixo cobre 6 das 10 categorias do OWASP Top 10 for LLM. "
+    "As outras 4 (dados de treinamento, cadeia de suprimentos, excesso de confiança, "
+    "roubo de modelo) exigem revisão manual de arquitetura/processo — use o checklist acima."
+)
+
 with st.expander("⚠️ Leia antes de usar", expanded=False):
     st.markdown(
         """

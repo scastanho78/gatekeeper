@@ -23,7 +23,8 @@ class HttpAdapter:
     # Monta o corpo da requisição a partir do prompt + histórico.
     request_builder: Callable[[str, list[str] | None], dict[str, Any]]
     # Extrai (texto, tokens_usados, tool_calls) da resposta JSON crua.
-    response_parser: Callable[[dict[str, Any]], tuple[str, int | None, list[str]]]
+    # tool_calls: list[dict] no formato {"name": ..., "arguments": ...}.
+    response_parser: Callable[[dict[str, Any]], tuple[str, int | None, list[dict]]]
     timeout_seconds: float = 30.0
 
     def send(self, prompt: str, *, history: list[str] | None = None) -> AgentResponse:
@@ -55,11 +56,14 @@ def example_openai_style_adapter(endpoint: str, api_key: str) -> HttpAdapter:
         messages.append({"role": "user", "content": prompt})
         return {"messages": messages}
 
-    def parse(data: dict[str, Any]) -> tuple[str, int | None, list[str]]:
+    def parse(data: dict[str, Any]) -> tuple[str, int | None, list[dict]]:
         text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
         tokens = data.get("usage", {}).get("total_tokens")
         tool_calls = [
-            tc.get("function", {}).get("name", "")
+            {
+                "name": tc.get("function", {}).get("name", ""),
+                "arguments": tc.get("function", {}).get("arguments", ""),
+            }
             for tc in data.get("choices", [{}])[0].get("message", {}).get("tool_calls", []) or []
         ]
         return text, tokens, tool_calls
@@ -82,11 +86,15 @@ def simple_json_adapter(endpoint: str, api_key: str = "", text_field: str = "res
     def build(prompt: str, history: list[str] | None) -> dict[str, Any]:
         return {"message": prompt, "history": history or []}
 
-    def parse(data: dict[str, Any]) -> tuple[str, int | None, list[str]]:
+    def parse(data: dict[str, Any]) -> tuple[str, int | None, list[dict]]:
         text = data.get(text_field, "")
         tokens = data.get("tokens_used") or data.get("usage", {}).get("total_tokens")
-        tool_calls = data.get("tool_calls", []) or []
-        return str(text), tokens, [str(t) for t in tool_calls]
+        raw_calls = data.get("tool_calls", []) or []
+        tool_calls = [
+            tc if isinstance(tc, dict) else {"name": str(tc), "arguments": ""}
+            for tc in raw_calls
+        ]
+        return str(text), tokens, tool_calls
 
     headers = {"Content-Type": "application/json"}
     if api_key:

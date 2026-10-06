@@ -15,7 +15,12 @@ class AgentResponse:
     text: str
     latency_seconds: float
     tokens_used: int | None = None
-    tool_calls: list[str] = field(default_factory=list)
+    # Cada chamada de ferramenta/plugin que o agente disparou, como
+    # {"name": "nome_da_ferramenta", "arguments": {...} | "string crua"}.
+    # `arguments` é opcional (nem todo adapter consegue extrair) — quando
+    # ausente, os testes de LLM07 (plugin design) ficam limitados a
+    # checar só o nome da ferramenta chamada, não os parâmetros.
+    tool_calls: list[dict] = field(default_factory=list)
     raw: dict | None = None
 
 

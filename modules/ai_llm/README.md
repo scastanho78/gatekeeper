@@ -17,11 +17,17 @@ passa pelos guardrails (`core/guardrails.py`) e precisa estar em
 | LLM08 Excessive Agency | Para agentes com tool-use: tenta induzir chamadas de ferramenta fora do que o usuário pediu (ex: deletar, enviar email, gastar dinheiro) sem confirmação | `probes/excessive_agency.yaml` |
 | Jailbreak / guardrail bypass genérico | Técnicas conhecidas (role-play, DAN-style, encoding, multi-turn erosion) para contornar as instruções de segurança do agente | `probes/jailbreak.yaml` |
 | LLM04 Model DoS (sinalização apenas) | Mede tempo de resposta/custo de tokens em prompts adversariais longos — não executa DoS de fato, só sinaliza risco | `probes/resource_abuse.yaml` |
+| LLM07 Insecure Plugin Design | Tenta fazer o agente chamar suas próprias ferramentas (leitura de arquivo, fetch de URL, execução de comando) com argumentos perigosos (path traversal, SSRF para endpoint de metadados cloud, injeção de shell) | `probes/plugin_design.yaml` |
+
+**Cobertura: 6 das 10 categorias do OWASP Top 10 for LLM** (LLM01, LLM02,
+LLM04, LLM06, LLM07, LLM08 — as duas últimas dependem do adapter expor
+os argumentos reais das chamadas de ferramenta, veja limitações abaixo).
 
 LLM03 (Training Data Poisoning), LLM05 (Supply Chain), LLM09
-(Overreliance) e LLM10 (Model Theft) não são testáveis por sondagem de
-prompt — ficam como checklist manual em `docs/ROADMAP.md` / revisão de
-arquitetura, não neste runner.
+(Overreliance) e LLM10 (Model Theft) **não são testáveis por sondagem de
+prompt** — são questões de arquitetura/processo. Para essas, use o
+checklist manual: `docs/CHECKLIST_LLM_MANUAL.md` (também disponível para
+download direto na tela, `ui/app.py`).
 
 ## Como usar
 
