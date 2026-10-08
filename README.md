@@ -38,11 +38,13 @@ consultorias externas. Mantida pelo CISO da empresa.
 ## Estrutura
 
 ```
+api/                API HTTP (FastAPI) sobre a mesma lógica — ver api/README.md
 config/            Escopo autorizado, janelas de teste, exclusões
 core/               Guardrails, orquestrador, modelo de scope
 docs/
   ROE_TEMPLATE.md   Modelo de Regras de Engajamento / autorização formal
   ROADMAP.md        Fases de implementação e status de cada módulo
+  LOVABLE_PROMPT.md Prompt pronto pra gerar um frontend alternativo no Lovable
 modules/
   recon/            Reconhecimento passivo/ativo de superfície
   web/              Testes OWASP Top 10 / API Security Top 10 (Fase 1 — ativo)
@@ -52,6 +54,20 @@ modules/
   ai_llm/           OWASP Top 10 for LLM Applications (Fase 5)
   reporting/        Geração de relatório consolidado
 ```
+
+## Frontend alternativo (Lovable)
+
+A tela Streamlit (`ui/app.py`) não é a única forma de usar o
+GateKeeper. `api/` expõe a mesma lógica (guardrails, cadastro de
+agentes, execução de teste, relatório) como API HTTP, pra quem quiser
+um frontend mais visual — como o gerado pelo [Lovable](https://lovable.dev).
+
+- `api/README.md` — endpoints disponíveis e como rodar a API.
+- `docs/LOVABLE_PROMPT.md` — prompt pronto pra colar no Lovable.
+
+O princípio não muda: a lógica de autorização continua só em
+`core/guardrails.py`. Nenhum frontend (Streamlit, Lovable ou outro)
+decide sozinho se uma execução é permitida.
 
 ## Instalação
 
