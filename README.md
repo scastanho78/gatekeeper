@@ -1,3 +1,11 @@
+> ⚠️ **Repositório obsoleto.** Este projeto virou um frontend via
+> [Lovable](https://lovable.dev), e a partir daí a fonte única passou a
+> ser **[scastanho78/ai-guard-station](https://github.com/scastanho78/ai-guard-station)**
+> — motor Python (`gatekeeper/core/`, `gatekeeper/modules/`) e frontend
+> React no mesmo repositório. Este aqui não recebe mais commits; fica
+> só como histórico de como o guardrail foi desenhado e validado
+> originalmente.
+
 # GateKeeper — Plataforma interna de testes de segurança
 
 Plataforma para orquestrar testes de segurança **internos e autorizados**,
